@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:moonsteel_smelt",
+  "inputs": [
+    {
+      "item": "example:frostiron#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:duskbronze#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:moonsteel#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

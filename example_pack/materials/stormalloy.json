@@ -1,0 +1,24 @@
+{
+  "type": "material",
+  "id": "example:stormalloy",
+  "displayName": "Storm Alloy",
+  "kind": "metal",
+  "properties": {
+    "damageMultiplier": 1.35,
+    "durabilityMultiplier": 1.45,
+    "meltingPoint": 1825
+  },
+  "visuals": {
+    "shader": {
+      "_ColorA": "#33445C",
+      "_ColorB": "#8096BC"
+    }
+  },
+  "ingot": {
+    "enabled": true,
+    "templateItemHash": 7204,
+    "spawnableByCommand": true
+  },
+  "listed": true,
+  "unlockAt": 1
+}

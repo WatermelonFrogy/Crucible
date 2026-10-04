@@ -1,0 +1,24 @@
+{
+  "type": "material",
+  "id": "example:duskbronze",
+  "displayName": "Duskbronze",
+  "kind": "metal",
+  "properties": {
+    "damageMultiplier": 1.2,
+    "durabilityMultiplier": 1.35,
+    "meltingPoint": 1450
+  },
+  "visuals": {
+    "shader": {
+      "_ColorA": "#3E2830",
+      "_ColorB": "#8C5A5F"
+    }
+  },
+  "ingot": {
+    "enabled": true,
+    "templateItemHash": 7204,
+    "spawnableByCommand": true
+  },
+  "listed": true,
+  "unlockAt": 1
+}

@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:frostiron_smelt",
+  "inputs": [
+    {
+      "item": "example:ferracite#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:cupralite#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:frostiron#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

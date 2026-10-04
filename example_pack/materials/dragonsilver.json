@@ -1,0 +1,24 @@
+{
+  "type": "material",
+  "id": "example:dragonsilver",
+  "displayName": "Dragonsilver",
+  "kind": "metal",
+  "properties": {
+    "damageMultiplier": 1.8,
+    "durabilityMultiplier": 1.65,
+    "meltingPoint": 2150
+  },
+  "visuals": {
+    "shader": {
+      "_ColorA": "#676D74",
+      "_ColorB": "#E4F6FF"
+    }
+  },
+  "ingot": {
+    "enabled": true,
+    "templateItemHash": 7204,
+    "spawnableByCommand": true
+  },
+  "listed": true,
+  "unlockAt": 3
+}

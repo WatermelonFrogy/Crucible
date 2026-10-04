@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:starbronze_smelt",
+  "inputs": [
+    {
+      "item": "example:duskbronze#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:sunsteel#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:starbronze#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

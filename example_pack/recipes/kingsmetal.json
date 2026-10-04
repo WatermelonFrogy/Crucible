@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:kingsmetal_smelt",
+  "inputs": [
+    {
+      "item": "example:auricite#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:dawnalloy#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:kingsmetal#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

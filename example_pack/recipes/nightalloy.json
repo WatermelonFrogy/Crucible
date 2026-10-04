@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:nightalloy_smelt",
+  "inputs": [
+    {
+      "item": "example:voidiron#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:moonsteel#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:nightalloy#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

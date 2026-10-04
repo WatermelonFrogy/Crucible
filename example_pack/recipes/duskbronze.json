@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:duskbronze_smelt",
+  "inputs": [
+    {
+      "item": "example:bronzium#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:cupralite#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:duskbronze#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

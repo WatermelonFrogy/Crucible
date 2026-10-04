@@ -1,0 +1,24 @@
+{
+  "type": "material",
+  "id": "example:glacialite",
+  "displayName": "Glacialite",
+  "kind": "metal",
+  "properties": {
+    "damageMultiplier": 1.4,
+    "durabilityMultiplier": 1.8,
+    "meltingPoint": 1875
+  },
+  "visuals": {
+    "shader": {
+      "_ColorA": "#7BA9B9",
+      "_ColorB": "#E7FFFF"
+    }
+  },
+  "ingot": {
+    "enabled": true,
+    "templateItemHash": 7204,
+    "spawnableByCommand": true
+  },
+  "listed": true,
+  "unlockAt": 2
+}

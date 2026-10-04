@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:tempestium_smelt",
+  "inputs": [
+    {
+      "item": "example:stormalloy#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:starbronze#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:tempestium#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

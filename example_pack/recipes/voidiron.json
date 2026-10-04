@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:voidiron_smelt",
+  "inputs": [
+    {
+      "item": "example:embersteel#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:frostiron#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:voidiron#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

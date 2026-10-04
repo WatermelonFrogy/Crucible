@@ -1,0 +1,28 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:crucibrium_smelt",
+  "inputs": [
+    {
+      "item": "example:celestium#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:umbrasteel#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:titanbronze#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:crucibrium#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

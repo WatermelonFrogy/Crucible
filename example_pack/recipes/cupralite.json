@@ -1,0 +1,20 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:cupralite_smelt",
+  "inputs": [
+    {
+      "item": "CopperIngot",
+      "count": 3
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:cupralite#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

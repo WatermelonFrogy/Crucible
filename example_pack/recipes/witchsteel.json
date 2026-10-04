@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:witchsteel_smelt",
+  "inputs": [
+    {
+      "item": "example:nightalloy#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:cinderalloy#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:witchsteel#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

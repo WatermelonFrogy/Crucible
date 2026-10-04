@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:dawnalloy_smelt",
+  "inputs": [
+    {
+      "item": "example:sunsteel#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:embersteel#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:dawnalloy#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

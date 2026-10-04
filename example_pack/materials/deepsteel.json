@@ -1,0 +1,24 @@
+{
+  "type": "material",
+  "id": "example:deepsteel",
+  "displayName": "Deepsteel",
+  "kind": "metal",
+  "properties": {
+    "damageMultiplier": 1.45,
+    "durabilityMultiplier": 1.7,
+    "meltingPoint": 2050
+  },
+  "visuals": {
+    "shader": {
+      "_ColorA": "#17252C",
+      "_ColorB": "#456975"
+    }
+  },
+  "ingot": {
+    "enabled": true,
+    "templateItemHash": 7204,
+    "spawnableByCommand": true
+  },
+  "listed": true,
+  "unlockAt": 2
+}

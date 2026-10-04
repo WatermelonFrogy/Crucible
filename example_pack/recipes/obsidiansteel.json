@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:obsidiansteel_smelt",
+  "inputs": [
+    {
+      "item": "example:witchsteel#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:deepsteel#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:obsidiansteel#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

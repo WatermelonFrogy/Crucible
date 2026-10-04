@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:runegold_smelt",
+  "inputs": [
+    {
+      "item": "example:kingsmetal#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:dragonsilver#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:runegold#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

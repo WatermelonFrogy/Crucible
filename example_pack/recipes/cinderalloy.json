@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:cinderalloy_smelt",
+  "inputs": [
+    {
+      "item": "example:embersteel#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:bloodmetal#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:cinderalloy#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

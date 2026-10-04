@@ -1,0 +1,24 @@
+{
+  "type": "material",
+  "id": "example:kingsmetal",
+  "displayName": "Kingsmetal",
+  "kind": "metal",
+  "properties": {
+    "damageMultiplier": 1.7,
+    "durabilityMultiplier": 1.75,
+    "meltingPoint": 2100
+  },
+  "visuals": {
+    "shader": {
+      "_ColorA": "#7A5411",
+      "_ColorB": "#F8D46C"
+    }
+  },
+  "ingot": {
+    "enabled": true,
+    "templateItemHash": 7204,
+    "spawnableByCommand": true
+  },
+  "listed": true,
+  "unlockAt": 3
+}

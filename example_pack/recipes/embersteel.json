@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:embersteel_smelt",
+  "inputs": [
+    {
+      "item": "example:orangenium#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:ferracite#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:embersteel#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

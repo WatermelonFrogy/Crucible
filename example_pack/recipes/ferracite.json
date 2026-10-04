@@ -1,0 +1,20 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:ferracite_smelt",
+  "inputs": [
+    {
+      "item": "IronIngot",
+      "count": 5
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:ferracite#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}

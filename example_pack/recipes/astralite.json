@@ -1,0 +1,24 @@
+{
+  "type": "smeltingRecipe",
+  "id": "example:astralite_smelt",
+  "inputs": [
+    {
+      "item": "example:kingsmetal#ingot",
+      "count": 1
+    },
+    {
+      "item": "example:tempestium#ingot",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "item": "example:astralite#ingot",
+      "count": 1
+    }
+  ],
+  "smelterUpgrades": [
+    35404
+  ],
+  "addToDefaultUpgrades": true
+}
