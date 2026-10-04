@@ -4,6 +4,8 @@ Crucible is a data-driven modding framework for **A Township Tale** that allows 
 
 Crucible is currently in early development.
 
+The long-term goal is to allow a large amount of A Township Tale content to be created through data packs without requiring every creator to write a full standalone mod.
+
 ## Requirements
 
 - [TavernLib](https://github.com/ModdingTavern/TavernLib)
