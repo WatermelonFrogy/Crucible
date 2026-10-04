@@ -1,7 +1,7 @@
-Orangenium = 3 Iron
-Cupralite   = 3 Copper
-Ferracite   = 5 Iron
-Bronzium    = 5 Copper
+Orangenium = 3 Iron + 1 Copper Ore
+Cupralite   = 3 Copper + 1 Iron Ore
+Ferracite   = 5 Iron + 1 Iron Ore
+Bronzium    = 5 Copper + 1 Copper Ore
 
 Embersteel  = Orangenium + Ferracite
 Duskbronze  = Bronzium + Cupralite
@@ -30,4 +30,4 @@ Obsidiansteel = Witchsteel + Deepsteel
 Runegold      = Kingsmetal + Dragonsilver
 Celestium     = Astralite + Runegold
 Umbrasteel    = Obsidiansteel + Witchsteel
-Crucibrium    = Celestium + Umbrasteel + Titanbronze
+Crucibrium    = Celestium + Umbrasteel

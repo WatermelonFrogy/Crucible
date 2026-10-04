@@ -5,8 +5,7 @@
   "kind": "metal",
   "properties": {
     "damageMultiplier": 2.0,
-    "durabilityMultiplier": 2.0,
-    "meltingPoint": 2325
+    "durabilityMultiplier": 2.0
   },
   "visuals": {
     "shader": {
@@ -20,5 +19,5 @@
     "spawnableByCommand": true
   },
   "listed": true,
-  "unlockAt": 4
+  "unlockAt": 3
 }

@@ -5,8 +5,7 @@
   "kind": "metal",
   "properties": {
     "damageMultiplier": 1.1,
-    "durabilityMultiplier": 1.25,
-    "meltingPoint": 1350
+    "durabilityMultiplier": 1.25
   },
   "visuals": {
     "shader": {

@@ -1,5 +1,5 @@
 <Project>
   <PropertyGroup>
-    <GamePath>D:\SteamLibrary\steamapps\common\A Township Tale</GamePath>
+    <GamePath Condition="'$(GamePath)' == ''">D:\SteamLibrary\steamapps\common\A Township Tale</GamePath>
   </PropertyGroup>
 </Project>
