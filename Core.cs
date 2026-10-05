@@ -35,6 +35,8 @@ namespace Crucible
         internal static readonly Dictionary<string, MaterialDef> MaterialsById = new Dictionary<string, MaterialDef>(StringComparer.Ordinal);
         internal static readonly Dictionary<int, string> UsedWideHashes = new Dictionary<int, string>();
         internal static readonly Dictionary<int, string> UsedNetworkHashes = new Dictionary<int, string>();
+        internal static readonly Dictionary<int, string> UsedMaterialHashes = new Dictionary<int, string>();
+        internal static readonly Dictionary<int, string> UsedItemHashes = new Dictionary<int, string>();
 
         private static bool _materialsReady;
         private static bool _recipesEventFired;
@@ -187,6 +189,7 @@ namespace Crucible
         public List<ItemRefDef> Outputs = new List<ItemRefDef>();
         public List<int> SmelterUpgrades = new List<int>();
         public bool AddToDefaultUpgrades = true;
+        public float? Duration;
         public string Where { get { return Pack.Id + "/" + File; } }
     }
 
@@ -211,6 +214,19 @@ namespace Crucible
 
     internal static class Hashing
     {
+        public const int MaxNetwork = 65535;
+
+        private static readonly int[][] Reserved =
+        {
+            new[] { 30227, 30541 },
+            new[] { 35211, 35216 },
+            new[] { 37301, 37309 },
+            new[] { 49221, 49224 },
+            new[] { 61791, 61795 },
+            new[] { 62913, 62913 },
+            new[] { 64101, 64199 }
+        };
+
         public static int Wide(string key)
         {
             uint h = Fnv("crucible:" + key);
@@ -234,7 +250,7 @@ namespace Crucible
             return h;
         }
 
-        private static int Locked(PackInfo p, string key, Func<string, int> generator, int? explicitValue)
+        private static int Locked(PackInfo p, string key, Func<string, int> generator, int? explicitValue, int max, Func<int, bool> taken)
         {
             if (explicitValue.HasValue)
             {
@@ -243,8 +259,14 @@ namespace Crucible
                 return explicitValue.Value;
             }
             int value;
-            if (p.Lock.TryGetValue(key, out value)) return value;
+            if (p.Lock.TryGetValue(key, out value))
+            {
+                if (value <= max && !taken(value)) return value;
+                CLog.Warn(p.Id + ": lock entry '" + key + "' = " + value + (value > max ? " is above " + max : " is already taken") + ", assigning a new number");
+            }
             value = generator(key);
+            for (int salt = 1; salt <= 32 && taken(value); salt++) value = generator(key + "#" + salt);
+            if (taken(value)) throw new InvalidOperationException("no free number found for " + key + ", set one in the pack");
             p.Lock[key] = value;
             p.LockDirty = true;
             return value;
@@ -252,48 +274,77 @@ namespace Crucible
 
         public static void AssignMaterialHashes(MaterialDef d)
         {
-            d.Hash = Locked(d.Pack, d.Id, Wide, d.HashOverride);
-            ClaimWide(d.Hash, d.Id, true);
+            d.Hash = Locked(d.Pack, d.Id, Network, d.HashOverride, MaxNetwork, MaterialTaken);
+            ClaimMaterial(d.Hash, d.Id);
             if (!d.IngotEnabled) return;
 
-            d.IngotItemHash = Locked(d.Pack, d.Id + "#ingot:item", Wide, d.IngotItemHashOverride);
-            d.IngotPrefabHash = Locked(d.Pack, d.Id + "#ingot:prefab", Network, d.IngotPrefabHashOverride);
-            ClaimWide(d.IngotItemHash, d.Id + "#ingot:item", false);
+            d.IngotItemHash = Locked(d.Pack, d.Id + "#ingot:item", Network, d.IngotItemHashOverride, MaxNetwork, ItemTaken);
+            d.IngotPrefabHash = Locked(d.Pack, d.Id + "#ingot:prefab", Network, d.IngotPrefabHashOverride, MaxNetwork, PrefabTaken);
+            ClaimItem(d.IngotItemHash, d.Id + "#ingot:item");
             ClaimNetwork(d.IngotPrefabHash, d.Id + "#ingot:prefab");
         }
 
         public static void AssignRecipeHash(SmeltingRecipeDef d)
         {
-            d.Hash = Locked(d.Pack, d.Id, Wide, d.HashOverride);
-            ClaimWide(d.Hash, d.Id, false);
+            d.Hash = Locked(d.Pack, d.Id, Wide, d.HashOverride, int.MaxValue, RecipeTaken);
+            Claim(CrucibleMod.UsedWideHashes, d.Hash, d.Id, int.MaxValue);
             if (SmeltingRecipe.All.Any(x => x.Hash == (uint)d.Hash))
                 throw new InvalidOperationException("hash " + d.Hash + " already belongs to an existing SmeltingRecipe");
         }
 
-        private static void ClaimWide(int hash, string id, bool material)
+        private static bool InReserved(int h)
         {
-            if (hash <= 0) throw new InvalidOperationException("hash must be positive");
-            string other;
-            if (CrucibleMod.UsedWideHashes.TryGetValue(hash, out other) && other != id)
-                throw new InvalidOperationException("hash " + hash + " collides with " + other);
-            CrucibleMod.UsedWideHashes[hash] = id;
+            foreach (int[] r in Reserved) if (h >= r[0] && h <= r[1]) return true;
+            return false;
+        }
 
-            if (material && PhysicalMaterial.All.Any(x => x.Hash == (uint)hash))
-                throw new InvalidOperationException("material hash " + hash + " already exists");
-            if (!material && Item.All.Any(x => x.Hash == (uint)hash))
-                throw new InvalidOperationException("item hash " + hash + " already exists");
+        private static bool Low16(uint hash, int h) { return (hash & 0xFFFF) == (uint)h; }
+
+        private static bool MaterialExists(int h)
+        {
+            return PhysicalMaterial.All.Any(x => Low16(x.Hash, h)) ||
+                   LibMaterial.NewMaterials.Any(m => m != null && m.physicalMaterial != null && Low16(m.physicalMaterial.Hash, h));
+        }
+
+        private static bool PrefabExists(int h)
+        {
+            PrefabManager.PrepareSpawnSetups();
+            return PrefabManager.Exists((uint)h) || Resources.FindObjectsOfTypeAll<NetworkPrefab>().Any(x => x != null && x.Hash == (uint)h);
+        }
+
+        private static bool MaterialTaken(int h) { return InReserved(h) || CrucibleMod.UsedMaterialHashes.ContainsKey(h) || MaterialExists(h); }
+        private static bool ItemTaken(int h) { return InReserved(h) || CrucibleMod.UsedItemHashes.ContainsKey(h) || Item.All.Any(x => Low16(x.Hash, h)); }
+        private static bool PrefabTaken(int h) { return InReserved(h) || CrucibleMod.UsedNetworkHashes.ContainsKey(h) || PrefabExists(h); }
+        private static bool RecipeTaken(int h) { return CrucibleMod.UsedWideHashes.ContainsKey(h) || SmeltingRecipe.All.Any(x => x.Hash == (uint)h); }
+
+        private static void Claim(Dictionary<int, string> used, int hash, string id, int max)
+        {
+            if (hash < 1 || hash > max) throw new InvalidOperationException("hash " + hash + " must be 1.." + max);
+            string other;
+            if (used.TryGetValue(hash, out other) && other != id)
+                throw new InvalidOperationException("hash " + hash + " collides with " + other);
+            used[hash] = id;
+            if (max == MaxNetwork && InReserved(hash)) CLog.Warn(id + ": hash " + hash + " is in a range another ATT mod already uses");
+        }
+
+        private static void ClaimMaterial(int hash, string id)
+        {
+            Claim(CrucibleMod.UsedMaterialHashes, hash, id, MaxNetwork);
+            if (MaterialExists(hash))
+                throw new InvalidOperationException("material hash " + hash + " (or one with the same low 16 bits) already exists");
+        }
+
+        private static void ClaimItem(int hash, string id)
+        {
+            Claim(CrucibleMod.UsedItemHashes, hash, id, MaxNetwork);
+            if (Item.All.Any(x => Low16(x.Hash, hash)))
+                throw new InvalidOperationException("item hash " + hash + " (or one with the same low 16 bits) already exists");
         }
 
         private static void ClaimNetwork(int hash, string id)
         {
-            if (hash < 1 || hash > 65535) throw new InvalidOperationException("network prefab hash must be 1..65535");
-            string other;
-            if (CrucibleMod.UsedNetworkHashes.TryGetValue(hash, out other) && other != id)
-                throw new InvalidOperationException("network hash " + hash + " collides with " + other);
-            CrucibleMod.UsedNetworkHashes[hash] = id;
-
-            NetworkPrefab[] prefabs = Resources.FindObjectsOfTypeAll<NetworkPrefab>();
-            if (prefabs.Any(x => x != null && x.Hash == (uint)hash))
+            Claim(CrucibleMod.UsedNetworkHashes, hash, id, MaxNetwork);
+            if (PrefabExists(hash))
                 throw new InvalidOperationException("network prefab hash " + hash + " already exists");
         }
     }
@@ -383,7 +434,7 @@ namespace Crucible
             else if (kind == "canvas") d.Kind = LibMaterial.MaterialType.canvas;
             else throw new InvalidOperationException("kind must be metal, wood, leather, or canvas");
 
-            d.HashOverride = OptInt(o, "hash", 1, int.MaxValue);
+            d.HashOverride = OptInt(o, "hash", 1, Hashing.MaxNetwork);
             object props;
             if (o.TryGetValue("properties", out props) && props != null)
             {
@@ -412,12 +463,12 @@ namespace Crucible
                 var io = Obj(ingot, "ingot");
                 d.IngotEnabled = Bool(io, "enabled", true);
                 d.IngotTemplateItemHash = OptInt(io, "templateItemHash", 1, int.MaxValue) ?? 7204;
-                d.IngotItemHashOverride = OptInt(io, "itemHash", 1, int.MaxValue);
+                d.IngotItemHashOverride = OptInt(io, "itemHash", 1, Hashing.MaxNetwork);
                 d.IngotPrefabHashOverride = OptInt(io, "prefabHash", 1, 65535);
                 d.IngotSpawnable = Bool(io, "spawnableByCommand", true);
             }
             d.Listed = Bool(o, "listed", true);
-            d.UnlockAt = OptInt(o, "unlockAt", 0, 100) ?? 0;
+            d.UnlockAt = OptInt(o, "unlockAt", 0, 3) ?? 0;
             Sanity(d);
             p.Materials.Add(d);
         }
@@ -430,9 +481,17 @@ namespace Crucible
             d.HashOverride = OptInt(o, "hash", 1, int.MaxValue);
             d.TemplateHash = OptInt(o, "template", 1, int.MaxValue);
             d.AddToDefaultUpgrades = Bool(o, "addToDefaultUpgrades", true);
+            object duration;
+            if (o.TryGetValue("duration", out duration) && duration != null)
+            {
+                double sec = Num(duration, "duration");
+                if (sec < 0.5 || sec > 3600) throw new InvalidOperationException("duration must be 0.5..3600 seconds");
+                d.Duration = (float)sec;
+            }
             d.Inputs = ParseItemRefs(o, "inputs");
             d.Outputs = ParseItemRefs(o, "outputs");
             if (d.Inputs.Count == 0 || d.Outputs.Count == 0) throw new InvalidOperationException("inputs and outputs must not be empty");
+            if (d.Inputs.Count > 2) throw new InvalidOperationException("a smelter has two ore docks, so a recipe can take at most 2 input types");
             object ups;
             if (o.TryGetValue("smelterUpgrades", out ups) && ups != null)
             {
@@ -498,7 +557,8 @@ namespace Crucible
             double a, b;
             if (d.PropsByName.TryGetValue("glowingstart", out a) && d.PropsByName.TryGetValue("glowingend", out b) && a >= b) CLog.Warn(d.Where + ": glowingStart >= glowingEnd");
             if (d.PropsByName.TryGetValue("density", out a) && a <= 0) CLog.Warn(d.Where + ": density <= 0");
-            if (d.PropsByName.TryGetValue("meltingpoint", out a) && d.PropsByName.TryGetValue("glowingend", out b) && a < b) CLog.Warn(d.Where + ": meltingPoint below glowingEnd");
+            if (d.PropsByName.ContainsKey("meltingpoint")) CLog.Warn(d.Where + ": meltingPoint is never read by the game (the Recycler melts parts at glowingEnd)");
+            if (d.PropsByName.ContainsKey("internalthermalconductivity")) CLog.Warn(d.Where + ": internalThermalConductivity is never read by the game");
         }
 
         private static void LoadLock(PackInfo p)
@@ -563,6 +623,12 @@ namespace Crucible
                 kv.Key.SetValue(cfg, value, null);
             }
             lib.Configure(cfg);
+            if (d.PropsByName.ContainsKey("durabilitymultiplier"))
+            {
+                FieldInfo useDurability = typeof(LibMaterial).GetField("useDurabilityMultiplier");
+                if (useDurability != null) useDurability.SetValue(lib, true);
+                else CLog.Warn(d.Where + ": durabilityMultiplier needs MateriaLib 1.3.0 or newer, the game itself never reads it");
+            }
 
             if (d.Kind == LibMaterial.MaterialType.metal && d.Shader.Count > 0)
             {
@@ -589,6 +655,7 @@ namespace Crucible
                 d.IngotItem = RuntimeCompat.GetPickupItem(ingotPickup);
                 if (d.IngotItem == null) throw new InvalidOperationException("generated ingot Pickup does not expose an Item reference");
                 if (!CustomRecipesAPI.Core.itemsToAddToSmelter.Contains(d.IngotItem)) CustomRecipesAPI.Core.itemsToAddToSmelter.Add(d.IngotItem);
+                RuntimeCompat.SetSourceMaterialHash(lib.physicalMaterial, d.IngotPrefabHash);
             }
 
             d.Built = lib;
@@ -642,11 +709,11 @@ namespace Crucible
 
             RuntimeCompat.SetHash(item, d.IngotItemHash);
             RuntimeCompat.SetHash(np, d.IngotPrefabHash);
-            RuntimeCompat.ReplacePhysicalMaterialReferences(item, templatePrefab.gameObject, go, lib.physicalMaterial);
+            RuntimeCompat.ReplacePhysicalMaterialReferences(item, go, RuntimeCompat.TemplateMaterial(template), lib.physicalMaterial);
             RuntimeCompat.SetPickupItem(pickup, item);
             RuntimeCompat.TrySetSpawnableByCommand(np, d.IngotSpawnable);
 
-            RuntimeCompat.RegisterNetworkPrefabLike(templatePrefab, np);
+            RuntimeCompat.RegisterPrefab(np);
             RuntimeCompat.SetItemPrefab(item, np);
             RuntimeCompat.RegisterItem(item);
 
@@ -686,6 +753,7 @@ namespace Crucible
             Item[] inputs = d.Inputs.Select(x => ResolveItem(x, d.Where)).ToArray();
             Item[] outputs = d.Outputs.Select(x => ResolveItem(x, d.Where)).ToArray();
             if (inputs.Any(x => outputs.Contains(x))) CLog.Warn(d.Where + ": an item appears in both inputs and outputs");
+            CheckSmelterRules(d, inputs);
 
             SmeltingRecipe template = d.TemplateHash.HasValue ? SmeltingRecipe.All.FirstOrDefault(x => x.Hash == (uint)d.TemplateHash.Value) : SmeltingRecipe.All.FirstOrDefault();
             if (template == null) throw new InvalidOperationException("no SmeltingRecipe template available");
@@ -694,6 +762,7 @@ namespace Crucible
             RuntimeCompat.SetHash(recipe, d.Hash);
             RuntimeCompat.ReplaceItemCounts(recipe, "input", inputs, d.Inputs.Select(x => x.Count).ToArray());
             RuntimeCompat.ReplaceItemCounts(recipe, "output", outputs, d.Outputs.Select(x => x.Count).ToArray());
+            if (d.Duration.HasValue) RuntimeCompat.SetRecipeDuration(recipe, d.Duration.Value);
 
             SmelterUpgrades first = null;
             if (d.SmelterUpgrades.Count > 0)
@@ -708,6 +777,22 @@ namespace Crucible
                 SmelterUpgrades up = SmelterUpgrades.All.FirstOrDefault(x => x.Hash == (uint)d.SmelterUpgrades[i]);
                 if (up == null) throw new InvalidOperationException("SmelterUpgrades " + d.SmelterUpgrades[i] + " not found");
                 CustomRecipesAPI.Core.AddSmeltingRecipeToSmelterUpgrades(recipe, up, false);
+            }
+        }
+
+        private static void CheckSmelterRules(SmeltingRecipeDef d, Item[] inputs)
+        {
+            if (inputs.Distinct().Count() != inputs.Length)
+                throw new InvalidOperationException(d.Where + ": the same item is listed twice in inputs");
+            if (inputs.Length == 1 && inputs[0].GetComponent<Ingot>() != null)
+                throw new InvalidOperationException(d.Where + ": a recipe whose only input is one ingot type runs before mould casting, so players could no longer cast " + inputs[0].name + " into moulds; add a second input type");
+            var wanted = new HashSet<Item>(inputs);
+            foreach (SmeltingRecipe r in SmeltingRecipe.All)
+            {
+                if (r == null || r.Input == null) continue;
+                var have = new HashSet<Item>(r.Input.Where(x => x != null && x.Item != null).Select(x => x.Item));
+                if (have.SetEquals(wanted))
+                    throw new InvalidOperationException(d.Where + ": recipe '" + r.name + "' already uses exactly these input types; the smelter only ever runs one of them");
             }
         }
 
@@ -1010,74 +1095,21 @@ namespace Crucible
                 throw new InvalidOperationException("Item registry accepted hash " + item.Hash + " but Item.All cannot resolve it");
         }
 
-        public static void RegisterNetworkPrefabLike(NetworkPrefab template, NetworkPrefab prefab)
+        public static void RegisterPrefab(NetworkPrefab prefab)
         {
-            if (template == null) throw new ArgumentNullException(nameof(template));
-            if (prefab == null) throw new ArgumentNullException(nameof(prefab));
-
-            bool registered = false;
-            var notes = new List<string>();
-
-            Type managerType = typeof(NetworkPrefab).Assembly.GetType("Alta.Networking.PrefabManager");
-            if (managerType != null)
+            PrefabManager.PrepareSpawnSetups();
+            NetworkPrefab existing = PrefabManager.GetPrefab(prefab.Hash);
+            if (existing != null && !ReferenceEquals(existing, prefab))
+                throw new InvalidOperationException("network prefab hash " + prefab.Hash + " already belongs to " + existing.name);
+            if (existing == null)
             {
-                foreach (object target in ManagerTargets(managerType))
-                {
-                    string detail;
-                    if (TryInvokePrefabRegister(managerType, target, prefab, out detail))
-                    {
-                        registered = true;
-                        notes.Add(detail);
-                        break;
-                    }
-                }
-
-                if (!registered)
-                {
-                    foreach (object target in ManagerTargets(managerType))
-                    {
-                        int n = CloneCollectionMembership(managerType, target, template, prefab, notes);
-                        if (n > 0) registered = true;
-                    }
-                }
+                MethodInfo add = typeof(PrefabManager).GetMethod("AddToPrefabMap", AnyStatic);
+                if (add == null) throw new MissingMethodException(typeof(PrefabManager).FullName, "AddToPrefabMap");
+                add.Invoke(null, new object[] { new[] { prefab } });
             }
-
-            int staticCopies = CloneCollectionMembership(typeof(NetworkPrefab), null, template, prefab, notes);
-            if (staticCopies > 0) registered = true;
-
-            int mirrored = MirrorPrefabAcrossAltaRegistries(template, prefab, notes);
-            if (mirrored > 0) registered = true;
-
-            try
-            {
-                IDictionary registry = GetHashedRegistry(typeof(NetworkPrefab), false);
-                if (registry != null)
-                {
-                    object key = ConvertHash(prefab.Hash, DictionaryKeyType(registry) ?? typeof(uint));
-                    if (!registry.Contains(key))
-                    {
-                        registry.Add(key, prefab);
-                        notes.Add("HashedGeneralValue<NetworkPrefab>");
-                    }
-                    else if (!ReferenceEquals(registry[key], prefab))
-                    {
-                        throw new InvalidOperationException("network prefab hash " + prefab.Hash + " already maps to another prefab");
-                    }
-                    registered = true;
-                }
-            }
-            catch (Exception e)
-            {
-                CLog.Warn("Hashed NetworkPrefab registry probe skipped: " + e.Message);
-            }
-
-            if (!registered)
-                throw new InvalidOperationException(
-                    "could not register generated NetworkPrefab " + prefab.Hash +
-                    " with Alta.Networking.PrefabManager; no compatible register method or template-backed registry was found");
-
-            CLog.Info("Registered NetworkPrefab " + prefab.Hash + " via " +
-                      (notes.Count == 0 ? "runtime registry" : string.Join(", ", notes.Distinct().ToArray())));
+            if (!ReferenceEquals(PrefabManager.GetPrefab(prefab.Hash), prefab))
+                throw new InvalidOperationException("PrefabManager did not accept network prefab " + prefab.Hash);
+            CLog.Info("Registered NetworkPrefab " + prefab.Hash + " via PrefabManager.AddToPrefabMap");
         }
 
         public static bool ReplaceReference(object obj, object oldValue, object newValue)
@@ -1199,304 +1231,29 @@ namespace Crucible
             return null;
         }
 
-        private static IEnumerable<object> ManagerTargets(Type managerType)
+        public static PhysicalMaterial TemplateMaterial(Item template)
         {
-            var targets = new List<object>();
-            targets.Add(null);
-
-            foreach (PropertyInfo p in managerType.GetProperties(AnyStatic))
-            {
-                if (!p.CanRead || p.GetIndexParameters().Length != 0 ||
-                    !managerType.IsAssignableFrom(p.PropertyType)) continue;
-                try
-                {
-                    object v = p.GetValue(null, null);
-                    if (v != null && !targets.Contains(v)) targets.Add(v);
-                }
-                catch { }
-            }
-            foreach (FieldInfo f in managerType.GetFields(AnyStatic))
-            {
-                if (!managerType.IsAssignableFrom(f.FieldType)) continue;
-                try
-                {
-                    object v = f.GetValue(null);
-                    if (v != null && !targets.Contains(v)) targets.Add(v);
-                }
-                catch { }
-            }
-
-            try
-            {
-                UnityEngine.Object[] objects = Resources.FindObjectsOfTypeAll(managerType);
-                if (objects != null)
-                    foreach (UnityEngine.Object o in objects)
-                        if (o != null && !targets.Contains(o)) targets.Add(o);
-            }
-            catch { }
-
-            return targets;
+            Ingot ingot = template.GetComponent<Ingot>();
+            if (ingot != null && ingot.PhysicalMaterial != null) return ingot.PhysicalMaterial;
+            return HashedGeneralValue<PhysicalMaterial>.Get((uint)LibMaterial.MaterialType.metal);
         }
 
-        private static int MirrorPrefabAcrossAltaRegistries(NetworkPrefab template, NetworkPrefab prefab, List<string> notes)
+        public static void SetRecipeDuration(SmeltingRecipe recipe, float seconds)
         {
-            int changed = 0;
-            Assembly[] assemblies;
-            try { assemblies = AppDomain.CurrentDomain.GetAssemblies(); }
-            catch { return 0; }
-
-            foreach (Assembly a in assemblies)
-            {
-                Type[] types;
-                try { types = a.GetTypes(); }
-                catch (ReflectionTypeLoadException e) { types = e.Types.Where(x => x != null).ToArray(); }
-                catch { continue; }
-
-                foreach (Type t in types)
-                {
-                    if (t == null || t == typeof(NetworkPrefab)) continue;
-                    string ns = t.Namespace ?? "";
-                    string name = t.Name ?? "";
-                    if (!ns.StartsWith("Alta", StringComparison.Ordinal)) continue;
-                    if (name.IndexOf("prefab", StringComparison.OrdinalIgnoreCase) < 0 &&
-                        name.IndexOf("spawn", StringComparison.OrdinalIgnoreCase) < 0) continue;
-
-                    changed += CloneCollectionMembership(t, null, template, prefab, notes);
-
-                    if (typeof(UnityEngine.Object).IsAssignableFrom(t))
-                    {
-                        try
-                        {
-                            UnityEngine.Object[] objects = Resources.FindObjectsOfTypeAll(t);
-                            if (objects != null)
-                                foreach (UnityEngine.Object o in objects)
-                                    if (o != null)
-                                        changed += CloneCollectionMembership(t, o, template, prefab, notes);
-                        }
-                        catch { }
-                    }
-                }
-            }
-            return changed;
+            FieldInfo f = typeof(SmeltingRecipe).GetField("duration", Any);
+            if (f == null) throw new MissingFieldException(typeof(SmeltingRecipe).FullName, "duration");
+            f.SetValue(recipe, seconds);
         }
 
-        private static bool TryInvokePrefabRegister(Type managerType, object target, NetworkPrefab prefab, out string detail)
+        public static void SetSourceMaterialHash(PhysicalMaterial material, int prefabHash)
         {
-            detail = null;
-            BindingFlags flags = target == null ? AnyStatic : Any;
-            string[] preferred = { "RegisterPrefab", "RegisterNetworkPrefab", "AddPrefab", "Register", "Add" };
-
-            foreach (string name in preferred)
-            {
-                foreach (MethodInfo m in managerType.GetMethods(flags).Where(x =>
-                    string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)))
-                {
-                    if (m.IsStatic != (target == null)) continue;
-                    ParameterInfo[] ps = m.GetParameters();
-                    object[] args = BuildPrefabRegisterArgs(ps, prefab);
-                    if (args == null) continue;
-                    try
-                    {
-                        m.Invoke(target, args);
-                        detail = managerType.Name + "." + m.Name;
-                        return true;
-                    }
-                    catch (TargetInvocationException e)
-                    {
-                        Exception inner = e.InnerException ?? e;
-                        CLog.Warn("Prefab register candidate " + managerType.Name + "." + m.Name +
-                                  " failed: " + inner.Message);
-                    }
-                    catch { }
-                }
-            }
-            return false;
+            FieldInfo f = typeof(PhysicalMaterial).GetField("sourceMaterialHash", Any);
+            if (f == null) throw new MissingFieldException(typeof(PhysicalMaterial).FullName, "sourceMaterialHash");
+            f.SetValue(material, (uint)prefabHash);
         }
 
-        private static object[] BuildPrefabRegisterArgs(ParameterInfo[] ps, NetworkPrefab prefab)
+        public static void ReplacePhysicalMaterialReferences(Item item, GameObject newPrefab, PhysicalMaterial oldMaterial, PhysicalMaterial replacement)
         {
-            if (ps.Length == 1)
-            {
-                if (ps[0].ParameterType.IsAssignableFrom(typeof(NetworkPrefab)))
-                    return new object[] { prefab };
-                if (ps[0].ParameterType.IsAssignableFrom(typeof(GameObject)))
-                    return new object[] { prefab.gameObject };
-                return null;
-            }
-
-            if (ps.Length == 2)
-            {
-                object[] args = new object[2];
-                bool hasPrefab = false, hasHash = false;
-                for (int i = 0; i < 2; i++)
-                {
-                    Type t = ps[i].ParameterType;
-                    if (t.IsAssignableFrom(typeof(NetworkPrefab)))
-                    {
-                        args[i] = prefab; hasPrefab = true;
-                    }
-                    else if (t.IsAssignableFrom(typeof(GameObject)))
-                    {
-                        args[i] = prefab.gameObject; hasPrefab = true;
-                    }
-                    else if (IsIntegral(t))
-                    {
-                        args[i] = ConvertHash(prefab.Hash, t); hasHash = true;
-                    }
-                    else if (t == typeof(bool))
-                    {
-                        args[i] = true;
-                    }
-                    else return null;
-                }
-                return hasPrefab && (hasHash || ps.Any(p => p.ParameterType == typeof(bool))) ? args : null;
-            }
-            return null;
-        }
-
-        private static int CloneCollectionMembership(Type ownerType, object target, NetworkPrefab template, NetworkPrefab prefab, List<string> notes)
-        {
-            int changed = 0;
-            bool isStatic = target == null;
-            BindingFlags flags = isStatic ? AnyStatic : Any;
-
-            foreach (FieldInfo f in ownerType.GetFields(flags))
-            {
-                if (f.IsStatic != isStatic) continue;
-                try
-                {
-                    object collection = f.GetValue(target);
-                    if (TryCloneCollection(collection, template, prefab))
-                    {
-                        changed++;
-                        notes.Add(ownerType.Name + "." + f.Name);
-                    }
-                    else if (collection != null && collection.GetType().IsArray && !f.IsInitOnly)
-                    {
-                        Array expanded;
-                        if (TryExpandArray((Array)collection, template, prefab, out expanded))
-                        {
-                            f.SetValue(target, expanded);
-                            changed++;
-                            notes.Add(ownerType.Name + "." + f.Name);
-                        }
-                    }
-                }
-                catch { }
-            }
-
-            foreach (PropertyInfo p in ownerType.GetProperties(flags))
-            {
-                MethodInfo getter = p.GetGetMethod(true);
-                if (getter == null || getter.IsStatic != isStatic || p.GetIndexParameters().Length != 0) continue;
-                try
-                {
-                    object collection = p.GetValue(target, null);
-                    if (TryCloneCollection(collection, template, prefab))
-                    {
-                        changed++;
-                        notes.Add(ownerType.Name + "." + p.Name);
-                    }
-                }
-                catch { }
-            }
-            return changed;
-        }
-
-        private static bool TryCloneCollection(object collection, NetworkPrefab template, NetworkPrefab prefab)
-        {
-            if (collection == null) return false;
-
-            IDictionary dict = collection as IDictionary;
-            if (dict != null)
-            {
-                object templateKey = null;
-                object templateValue = null;
-                foreach (DictionaryEntry e in dict)
-                {
-                    if (ReferenceEquals(e.Value, template) || ReferenceEquals(e.Value, template.gameObject))
-                    {
-                        templateKey = e.Key;
-                        templateValue = e.Value;
-                        break;
-                    }
-                }
-                if (templateValue == null) return false;
-
-                object newKey;
-                Type keyType = templateKey == null ? DictionaryKeyType(dict) : templateKey.GetType();
-                if (keyType == typeof(string))
-                    newKey = prefab.gameObject.name;
-                else if (keyType != null && IsIntegral(keyType))
-                    newKey = ConvertHash(prefab.Hash, keyType);
-                else
-                    return false;
-
-                object newValue = ReferenceEquals(templateValue, template.gameObject) ? (object)prefab.gameObject : prefab;
-                if (dict.Contains(newKey))
-                {
-                    if (!ReferenceEquals(dict[newKey], newValue))
-                        throw new InvalidOperationException("Prefab registry key " + newKey + " already belongs to another prefab");
-                    return true;
-                }
-                dict.Add(newKey, newValue);
-                return true;
-            }
-
-            IList list = collection as IList;
-            if (list != null && !list.IsFixedSize)
-            {
-                bool containsTemplate = false;
-                bool storesGameObjects = false;
-                foreach (object x in list)
-                {
-                    if (ReferenceEquals(x, template.gameObject)) storesGameObjects = true;
-                    if (ReferenceEquals(x, template) || ReferenceEquals(x, template.gameObject))
-                        containsTemplate = true;
-                }
-                if (!containsTemplate) return false;
-
-                object newValue = storesGameObjects ? (object)prefab.gameObject : prefab;
-                foreach (object x in list) if (ReferenceEquals(x, newValue)) return true;
-                list.Add(newValue);
-                return true;
-            }
-
-            return false;
-        }
-
-        private static bool TryExpandArray(Array source, NetworkPrefab template, NetworkPrefab prefab, out Array expanded)
-        {
-            expanded = null;
-            if (source == null || source.Rank != 1) return false;
-            Type elem = source.GetType().GetElementType();
-            if (elem == null) return false;
-
-            bool gameObjectArray = typeof(GameObject).IsAssignableFrom(elem);
-            bool prefabArray = typeof(NetworkPrefab).IsAssignableFrom(elem);
-            if (!gameObjectArray && !prefabArray) return false;
-
-            bool containsTemplate = false;
-            for (int i = 0; i < source.Length; i++)
-            {
-                object x = source.GetValue(i);
-                if (ReferenceEquals(x, template) || ReferenceEquals(x, template.gameObject))
-                {
-                    containsTemplate = true;
-                    break;
-                }
-            }
-            if (!containsTemplate) return false;
-
-            expanded = Array.CreateInstance(elem, source.Length + 1);
-            Array.Copy(source, expanded, source.Length);
-            expanded.SetValue(gameObjectArray ? (object)prefab.gameObject : prefab, source.Length);
-            return true;
-        }
-
-        public static void ReplacePhysicalMaterialReferences(Item item, GameObject oldPrefab, GameObject newPrefab, PhysicalMaterial replacement)
-        {
-            PhysicalMaterial oldMaterial = HashedGeneralValue<PhysicalMaterial>.Get((uint)LibMaterial.MaterialType.metal);
             ReplacePhysicalOnObject(item, oldMaterial, replacement);
 
             // Clone ItemComponents before editing them so vanilla/shared item data is never mutated.

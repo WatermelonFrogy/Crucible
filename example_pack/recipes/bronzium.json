@@ -5,6 +5,10 @@
     {
       "item": "CopperIngot",
       "count": 5
+    },
+    {
+      "item": "CopperOre",
+      "count": 1
     }
   ],
   "outputs": [
