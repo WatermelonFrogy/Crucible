@@ -125,7 +125,7 @@
 			<HintPath>$(GamePath)/A Township Tale_Data\Managed\CrossGameplayApi.dll</HintPath>
 		</Reference>
 		<Reference Include="CustomRecipesAPI">
-		  <HintPath>dependencies\CustomRecipesAPI.dll</HintPath>
+		  <HintPath>libs\CustomRecipesAPI.dll</HintPath>
 		</Reference>
 		<Reference Include="EmbedIO">
 			<HintPath>$(GamePath)/A Township Tale_Data\Managed\EmbedIO.dll</HintPath>
