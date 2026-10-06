@@ -363,3 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 # Third-party DLLs referenced by Crucible.csproj
 dependencies/
+/libs
