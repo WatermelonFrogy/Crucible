@@ -22,7 +22,7 @@ using MaterialConfig = MateriaLib.MaterialConfig;
 using Path = System.IO.Path;
 using SearchOption = System.IO.SearchOption;
 
-[assembly: MelonInfo(typeof(Crucible.CrucibleMod), "Crucible", "0.1", "WatermelonFrogy")]
+[assembly: MelonInfo(typeof(Crucible.CrucibleMod), "Crucible", "0.2", "WatermelonFrogy")]
 [assembly: MelonGame("Alta", "A Township Tale")]
 [assembly: MelonAdditionalDependencies("MateriaLib", "CustomRecipesAPI")]
 
@@ -30,7 +30,7 @@ namespace Crucible
 {
     public class CrucibleMod : MelonMod
     {
-        internal const string ModVersion = "0.1";
+        internal const string ModVersion = "0.2";
         internal static readonly List<PackInfo> Packs = new List<PackInfo>();
         internal static readonly Dictionary<string, MaterialDef> MaterialsById = new Dictionary<string, MaterialDef>(StringComparer.Ordinal);
         internal static readonly Dictionary<int, string> UsedWideHashes = new Dictionary<int, string>();
