@@ -48,6 +48,7 @@ Example `manifest.json`:
   "author": "Your Name",
   "description": "An example Crucible content pack."
 }
+```
 
 ## Visual Shader Profiles
 
@@ -111,7 +112,6 @@ The example pack in `example_pack/` has been updated to demonstrate:
 If you ship packs, include the generated `crucible.lock.json` so clients and servers agree on numeric hashes.
 
 Wood materials: custom wood visuals historically failed when the source PhysicalMaterial did not expose the expected channel spots. Crucible now uses safer aliasing for shader properties and the example `example_pack/materials/wood/` files target the adapter slots `A`, `B`, `charred`, `burnt`, and `ashen`. If you still see missing visuals for wood, inspect the source material (use `visuals.sourceMaterialHash`) to ensure it provides the same channel spots; if not, set `visuals.materials` in your material JSON to supply explicit replacements for the desired slots.
-```
 
 The `id` is used as the namespace for everything inside the pack.
 
@@ -129,7 +129,6 @@ example:orangenium_smelt
   "type": "material",
   "id": "example:orangenium",
   "displayName": "Orangenium",
-```
   "kind": "metal",
   "properties": {
     "damageMultiplier": 1.25,
@@ -155,7 +154,7 @@ example:orangenium_smelt
   "listed": true,
   "unlockAt": 0
 }
-
+```
 Notes on the example above:
 - `visuals.profile` points at a reusable shader profile (see `shaders/`).
 - `visuals.shader` contains per-material global overrides; `visuals.materials` targets adapter slots (A/B/charred/etc.).
