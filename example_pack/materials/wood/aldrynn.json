@@ -1,0 +1,19 @@
+{
+  "type": "material",
+  "id": "example:aldrynn",
+  "displayName": "Aldrynn",
+  "kind": "wood",
+  "properties": {
+    "damageMultiplier": 0.95,
+    "durabilityMultiplier": 0.9
+  },
+  "visuals": {
+    "profile": "example:wood_basic",
+    "shader": {
+      "_ColorA": "#C9B58B",
+      "_ColorB": "#A78F6E"
+    }
+  },
+  "listed": true,
+  "unlockAt": 0
+}

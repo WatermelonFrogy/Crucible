@@ -1,0 +1,17 @@
+{
+  "type": "shaderProfile",
+  "id": "example:metal_void",
+  "kind": "metal",
+  "properties": {
+    "_ColorA": "#07070A",
+    "_ColorB": "#3A2B4C",
+    "_Glossiness": 0.15,
+    "_Metallic": 0.85
+  },
+  "materials": {
+    "B": {
+      "_ColorB": "#6A3FA1",
+      "_EmissionColor": "#210032FF"
+    }
+  }
+}

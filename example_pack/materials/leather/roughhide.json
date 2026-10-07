@@ -1,0 +1,17 @@
+{
+  "type": "material",
+  "id": "example:morren",
+  "displayName": "Morren",
+  "kind": "leather",
+  "properties": {
+    "damageMultiplier": 0.95,
+    "durabilityMultiplier": 1.0
+  },
+  "visuals": {
+    "shader": {
+      "_ColorA": "#6A3F33"
+    }
+  },
+  "listed": true,
+  "unlockAt": 0
+}

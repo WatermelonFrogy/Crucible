@@ -1,0 +1,19 @@
+{
+  "type": "material",
+  "id": "example:mistveil",
+  "displayName": "Mistveil",
+  "kind": "canvas",
+  "properties": {
+    "damageMultiplier": 0.95,
+    "durabilityMultiplier": 0.9
+  },
+  "visuals": {
+    "profile": "example:canvas_worn",
+    "shader": {
+      "_ColorA": "#8C8C8C",
+      "_Color": "#5F5F5F"
+    }
+  },
+  "listed": true,
+  "unlockAt": 0
+}

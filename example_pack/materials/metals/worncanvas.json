@@ -1,0 +1,19 @@
+{
+  "type": "material",
+  "id": "example:worncanvas",
+  "displayName": "Worn Canvas",
+  "kind": "canvas",
+  "properties": {
+    "damageMultiplier": 0.9,
+    "durabilityMultiplier": 0.8
+  },
+  "visuals": {
+    "profile": "example:canvas_worn",
+    "shader": {
+      "_ColorA": "#7A6B55",
+      "_ColorB": "#4C3A2B"
+    }
+  },
+  "listed": true,
+  "unlockAt": 0
+}

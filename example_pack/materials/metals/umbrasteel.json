@@ -8,9 +8,11 @@
     "durabilityMultiplier": 2.0
   },
   "visuals": {
+    "profile": "example:metal_void",
     "shader": {
-      "_ColorA": "#111018",
-      "_ColorB": "#51495F"
+      "_ColorA": "#0E0E12",
+      "_ColorB": "#4C3C57",
+      "_EmissionColor": "#200030FF"
     }
   },
   "ingot": {

@@ -1,0 +1,8 @@
+{
+  "type": "shaderProfile",
+  "id": "example:metal_basic",
+  "kind": "metal",
+  "properties": {
+    "_Glossiness": 0.6
+  }
+}

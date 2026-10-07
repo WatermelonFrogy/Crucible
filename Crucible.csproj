@@ -1,9 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFramework>net48</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>disable</Nullable>
 		<RootNamespace>Crucible</RootNamespace>
+		<GamePath Condition="'$(GamePath)' == ''">D:\\SteamLibrary\\steamapps\\common\\A Township Tale</GamePath>
 		<IsPackable>false</IsPackable>
 		<AssemblyVersion>1.0.0.0</AssemblyVersion>
 		<FileVersion>1.0.0.0</FileVersion>
@@ -357,7 +358,14 @@
 		</Reference>
 		<Reference Include="Unity.Services.Core.Environments.Internal">
 			<HintPath>$(GamePath)/A Township Tale_Data\Managed\Unity.Services.Core.Environments.Internal.dll</HintPath>
-		</Reference>
+	</Reference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="System.IO.Compression" />
+		<Reference Include="System.IO.Compression.FileSystem" />
+	</ItemGroup>
+	<ItemGroup>
 		<Reference Include="Unity.Services.Core.Internal">
 			<HintPath>$(GamePath)/A Township Tale_Data\Managed\Unity.Services.Core.Internal.dll</HintPath>
 		</Reference>
@@ -675,6 +683,7 @@
 	</ItemGroup>
 	
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(CopyToMods)' != 'false'">
-		<Exec Command="COPY &quot;$(TargetPath)&quot; &quot;$(GamePath)/Mods&quot;" />
+		<!-- Ensure destination Mods folder exists, then copy. This avoids failing the build when GamePath exists but Mods is missing. -->
+		<Exec Command="IF NOT EXIST &quot;$(GamePath)\Mods&quot; (MKDIR &quot;$(GamePath)\Mods&quot;) &amp; COPY &quot;$(TargetPath)&quot; &quot;$(GamePath)\Mods&quot;" />
 	</Target>
 </Project>

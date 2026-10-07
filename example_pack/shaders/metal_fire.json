@@ -1,0 +1,16 @@
+{
+  "type": "shaderProfile",
+  "id": "example:metal_fire",
+  "kind": "metal",
+  "properties": {
+    "_ColorA": "#2B0B08",
+    "_ColorB": "#FF7A18",
+    "_Glossiness": 0.75,
+    "_Metallic": 1.0
+  },
+  "materials": {
+    "A": {
+      "_EmissionColor": "#803010FF"
+    }
+  }
+}

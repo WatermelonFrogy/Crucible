@@ -1,0 +1,17 @@
+{
+  "type": "material",
+  "id": "example:umbrin",
+  "displayName": "Umbrin",
+  "kind": "leather",
+  "properties": {
+    "damageMultiplier": 1.15,
+    "durabilityMultiplier": 1.25
+  },
+  "visuals": {
+    "shader": {
+      "_ColorA": "#2F1E1B"
+    }
+  },
+  "listed": true,
+  "unlockAt": 2
+}

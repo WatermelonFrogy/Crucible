@@ -1,0 +1,19 @@
+{
+  "type": "material",
+  "id": "example:verdantveil",
+  "displayName": "Verdant Veil",
+  "kind": "canvas",
+  "properties": {
+    "damageMultiplier": 0.95,
+    "durabilityMultiplier": 0.9
+  },
+  "visuals": {
+    "profile": "example:canvas_worn",
+    "shader": {
+      "_ColorA": "#6C8B66",
+      "_Color": "#4C6B4C"
+    }
+  },
+  "listed": true,
+  "unlockAt": 0
+}

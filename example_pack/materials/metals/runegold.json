@@ -1,16 +1,18 @@
 {
   "type": "material",
-  "id": "example:obsidiansteel",
-  "displayName": "Obsidiansteel",
+  "id": "example:runegold",
+  "displayName": "Runegold",
   "kind": "metal",
   "properties": {
-    "damageMultiplier": 1.85,
-    "durabilityMultiplier": 1.9
+    "damageMultiplier": 1.9,
+    "durabilityMultiplier": 1.75
   },
   "visuals": {
+    "profile": "example:metal_sheen",
     "shader": {
-      "_ColorA": "#0D0D12",
-      "_ColorB": "#3A3A48"
+      "_ColorA": "#7F5D13",
+      "_ColorB": "#FFE78B",
+      "_SpecularTint": 0.7
     }
   },
   "ingot": {

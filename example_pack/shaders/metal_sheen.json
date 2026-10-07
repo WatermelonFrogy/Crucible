@@ -1,0 +1,16 @@
+{
+  "type": "shaderProfile",
+  "id": "example:metal_sheen",
+  "kind": "metal",
+  "properties": {
+    "_ColorA": "#D8C7B8",
+    "_ColorB": "#FFF6E5",
+    "_Glossiness": 0.92,
+    "_Metallic": 0.7
+  },
+  "materials": {
+    "A": {
+      "_SpecularTint": 0.6
+    }
+  }
+}

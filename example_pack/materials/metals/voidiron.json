@@ -1,16 +1,17 @@
 {
   "type": "material",
-  "id": "example:nightalloy",
-  "displayName": "Night Alloy",
+  "id": "example:voidiron",
+  "displayName": "Voidiron",
   "kind": "metal",
   "properties": {
-    "damageMultiplier": 1.6,
-    "durabilityMultiplier": 1.7
+    "damageMultiplier": 1.5,
+    "durabilityMultiplier": 1.6
   },
   "visuals": {
+    "profile": "example:metal_void",
     "shader": {
-      "_ColorA": "#171726",
-      "_ColorB": "#66608F"
+      "_ColorA": "#0F1013",
+      "_ColorB": "#5A3FA8"
     }
   },
   "ingot": {

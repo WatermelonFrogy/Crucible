@@ -1,0 +1,19 @@
+{
+  "type": "material",
+  "id": "example:lowencloth",
+  "displayName": "Lowencloth",
+  "kind": "canvas",
+  "properties": {
+    "damageMultiplier": 0.95,
+    "durabilityMultiplier": 0.9
+  },
+  "visuals": {
+    "profile": "example:canvas_worn",
+    "shader": {
+      "_ColorA": "#A1886F",
+      "_Color": "#806650"
+    }
+  },
+  "listed": true,
+  "unlockAt": 0
+}

@@ -1,0 +1,19 @@
+{
+  "type": "material",
+  "id": "example:nightbark",
+  "displayName": "Nightbark",
+  "kind": "wood",
+  "properties": {
+    "damageMultiplier": 1.1,
+    "durabilityMultiplier": 1.2
+  },
+  "visuals": {
+    "profile": "example:wood_basic",
+    "shader": {
+      "_ColorA": "#0F0F10",
+      "_ColorB": "#2A2A2D"
+    }
+  },
+  "listed": true,
+  "unlockAt": 2
+}

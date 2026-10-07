@@ -1,0 +1,17 @@
+{
+  "type": "material",
+  "id": "example:velora",
+  "displayName": "Velora",
+  "kind": "leather",
+  "properties": {
+    "damageMultiplier": 0.9,
+    "durabilityMultiplier": 0.8
+  },
+  "visuals": {
+    "shader": {
+      "_ColorA": "#7A4B3A"
+    }
+  },
+  "listed": true,
+  "unlockAt": 0
+}

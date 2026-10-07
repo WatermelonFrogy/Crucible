@@ -1,0 +1,21 @@
+{
+  "type": "shaderProfile",
+  "id": "example:wood_basic",
+  "kind": "wood",
+  "properties": {
+    "_ColorA": "#8B5A2B",
+    "_ColorB": "#5C3A20",
+    "_Roughness": 0.8
+  },
+  "materials": {
+    "A": {
+      "_ColorA": "#8B5A2B"
+    },
+    "B": {
+      "_ColorB": "#5C3A20"
+    },
+    "charred": {
+      "_ColorA": "#2B2B2B"
+    }
+  }
+}

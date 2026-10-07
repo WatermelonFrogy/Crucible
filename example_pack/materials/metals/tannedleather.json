@@ -1,0 +1,17 @@
+{
+  "type": "material",
+  "id": "example:tannedleather",
+  "displayName": "Tanned Leather",
+  "kind": "leather",
+  "properties": {
+    "damageMultiplier": 1.05,
+    "durabilityMultiplier": 1.1
+  },
+  "visuals": {
+    "shader": {
+      "_ColorA": "#6B3A2D"
+    }
+  },
+  "listed": true,
+  "unlockAt": 0
+}

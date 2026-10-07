@@ -1,0 +1,16 @@
+{
+  "type": "shaderProfile",
+  "id": "example:metal_frost",
+  "kind": "metal",
+  "properties": {
+    "_ColorA": "#E6F7FF",
+    "_ColorB": "#9BD7FF",
+    "_Glossiness": 0.5,
+    "_Metallic": 0.9
+  },
+  "materials": {
+    "A": {
+      "_FresnelBoost": 1.2
+    }
+  }
+}

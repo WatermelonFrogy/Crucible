@@ -1,0 +1,17 @@
+{
+  "type": "material",
+  "id": "example:grath",
+  "displayName": "Grath",
+  "kind": "leather",
+  "properties": {
+    "damageMultiplier": 1.1,
+    "durabilityMultiplier": 1.3
+  },
+  "visuals": {
+    "shader": {
+      "_ColorA": "#4C2F26"
+    }
+  },
+  "listed": true,
+  "unlockAt": 1
+}

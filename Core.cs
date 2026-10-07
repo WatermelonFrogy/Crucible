@@ -28,6 +28,9 @@ using SearchOption = System.IO.SearchOption;
 
 namespace Crucible
 {
+    // CrucibleMod is the MelonLoader entry point for the Crucible mod.
+    // It drives pack discovery, registers callbacks into MateriaLib and CustomRecipesAPI,
+    // and coordinates the material and recipe registration phases.
     public class CrucibleMod : MelonMod
     {
         internal const string ModVersion = "0.2";
@@ -52,6 +55,7 @@ namespace Crucible
                     foreach (MaterialDef m in p.Materials)
                         MaterialsById[m.Id] = m;
             }
+
             catch (Exception e)
             {
                 CLog.Error("Pack loading failed: " + e);
@@ -140,6 +144,10 @@ namespace Crucible
 
     internal sealed class PackInfo
     {
+        // PackInfo holds metadata and parsed content for a single Crucible pack directory.
+        // Id/Name/Version/Author are the manifest values. Dir is the pack folder on disk.
+        // Lock contains the assigned numeric hashes for that pack and LockDirty marks when the
+        // lock file needs to be rewritten.
         public string Id, Name, Version, Author, Dir, RawHash, LockPath;
         public List<MaterialDef> Materials = new List<MaterialDef>();
         public List<SmeltingRecipeDef> Recipes = new List<SmeltingRecipeDef>();
@@ -149,9 +157,41 @@ namespace Crucible
 
     internal sealed class ShaderOverride
     {
+        // ShaderOverride represents a single property override for a Unity material.
+        // Name is the shader property name (e.g. "_ColorA"). Vec is used for vector/colour
+        // overrides and Num for single float values. Only one of Vec or Num is expected.
         public string Name;
         public Vector4? Vec;
         public float? Num;
+    }
+
+    internal sealed class ShaderProfile
+    {
+        // ShaderProfile groups reusable shader property defaults and per-material-slot overrides.
+        // Id is the namespaced id used in visuals.profile. Kind restricts the profile to a
+        // particular material kind ("metal", "wood", "canvas", "leather") or is null for any.
+        public string Id;
+        public string Kind; // single kind name like "metal" or null for any
+        public List<ShaderOverride> Properties = new List<ShaderOverride>();
+        // MaterialProperties maps slot names (A, B, worn, cutout, charred, ...) to a list of overrides.
+        public Dictionary<string, List<ShaderOverride>> MaterialProperties = new Dictionary<string, List<ShaderOverride>>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    internal static class ProfileRegistry
+    {
+        // Simple in-memory registry for shader profiles. Profiles are identified by their Id.
+        private static readonly Dictionary<string, ShaderProfile> _profiles = new Dictionary<string, ShaderProfile>(StringComparer.Ordinal);
+
+        // Register adds a new profile to the registry. Throws on duplicates or malformed input.
+        public static void Register(ShaderProfile p)
+        {
+            if (p == null || string.IsNullOrEmpty(p.Id)) throw new ArgumentNullException(nameof(p));
+            if (_profiles.ContainsKey(p.Id)) throw new InvalidOperationException("duplicate shader profile id '" + p.Id + "'");
+            _profiles[p.Id] = p;
+        }
+
+        // TryGet resolves a profile id to the registered ShaderProfile instance.
+        public static bool TryGet(string id, out ShaderProfile p) { return _profiles.TryGetValue(id, out p); }
     }
 
     internal sealed class MaterialDef
@@ -159,12 +199,19 @@ namespace Crucible
         public PackInfo Pack;
         public string File, Id, DisplayName;
         public LibMaterial.MaterialType Kind;
+        public int? SourceMaterialHashOverride;
         public int? HashOverride, IngotItemHashOverride, IngotPrefabHashOverride;
         public int Hash, IngotItemHash, IngotPrefabHash;
         public int IngotTemplateItemHash = 7204;
         public Dictionary<PropertyInfo, double> Props = new Dictionary<PropertyInfo, double>();
         public Dictionary<string, double> PropsByName = new Dictionary<string, double>();
         public List<ShaderOverride> Shader = new List<ShaderOverride>();
+        // Per-material / per-channel shader overrides. Key is channel name like "A", "B", or custom.
+        public Dictionary<string, List<ShaderOverride>> MaterialShaders = new Dictionary<string, List<ShaderOverride>>(StringComparer.OrdinalIgnoreCase);
+        // Optional referenced shader profile id (e.g. "crucible:glow-ingot").
+        public string ProfileId;
+        // Material-level global overrides (legacy "visuals.shader" or visuals.overrides)
+        public List<ShaderOverride> ProfileOverrides = new List<ShaderOverride>();
         public bool IngotEnabled, IngotSpawnable, Listed = true, Failed;
         public int UnlockAt;
         public LibMaterial Built;
@@ -195,6 +242,10 @@ namespace Crucible
 
     internal static class CLog
     {
+        // CLog is a minimal logger wrapper used during pack load/registration.
+        // It captures lines for later dump to the Crucible logs folder and forwards
+        // messages to MelonLoader's logger. Errors and warnings are counted so callers
+        // can make decisions based on problems encountered while loading packs.
         private static readonly List<string> Lines = new List<string>();
         public static int Errors, Warnings;
         public static void Info(string m) { MelonLogger.Msg(m); Lines.Add("[INFO]  " + m); }
@@ -351,6 +402,9 @@ namespace Crucible
 
     internal static class PackLoader
     {
+        // PackLoader enumerates the packs directory, validates JSON files and manifests,
+        // and parses shader profiles, materials and recipes into in-memory PackInfo
+        // structures consumed by the rest of the system.
         public static string Root { get { return Path.Combine(MelonEnvironment.UserDataDirectory, "Crucible"); } }
         public static string PacksDir { get { return Path.Combine(Root, "packs"); } }
         private const long MaxFileBytes = 256 * 1024;
@@ -401,6 +455,8 @@ namespace Crucible
             };
             LoadLock(p);
 
+            // Load shader profiles first so materials can reference them
+            LoadFiles(Path.Combine(dir, "shaders"), p, contentIds, ParseShaderProfile);
             LoadFiles(Path.Combine(dir, "materials"), p, contentIds, ParseMaterial);
             LoadFiles(Path.Combine(dir, "recipes"), p, contentIds, ParseRecipe);
             p.RawHash = RawPackHash(dir);
@@ -422,6 +478,50 @@ namespace Crucible
             }
         }
 
+        private static void ParseShaderProfile(PackInfo p, string rel, Dictionary<string, object> o, HashSet<string> ids)
+        {
+            if (Str(o, "type") != "shaderProfile") throw new InvalidOperationException("type must be 'shaderProfile'");
+            string id = RequiredId(p, rel, o, ids);
+            var prof = new ShaderProfile { Id = id };
+            prof.Kind = Str(o, "kind");
+
+            object props;
+            if (o.TryGetValue("properties", out props) && props != null)
+            {
+                var po = Obj(props, "properties");
+                foreach (var kv in po)
+                {
+                    try { prof.Properties.Add(ParseShader(kv.Key, kv.Value)); }
+                    catch (Exception e) { CLog.Warn(p.Id + "/" + rel + ": properties." + kv.Key + ": " + e.Message); }
+                }
+            }
+
+            object mats;
+            if (o.TryGetValue("materials", out mats) && mats != null)
+            {
+                var mo = Obj(mats, "materials");
+                foreach (var matKv in mo)
+                {
+                    string channel = matKv.Key;
+                    try
+                    {
+                        var map = Obj(matKv.Value, "materials." + channel);
+                        foreach (var kv in map)
+                        {
+                            var so = ParseShader(kv.Key, kv.Value);
+                            List<ShaderOverride> list;
+                            if (!prof.MaterialProperties.TryGetValue(channel, out list)) { list = new List<ShaderOverride>(); prof.MaterialProperties[channel] = list; }
+                            list.Add(so);
+                        }
+                    }
+                    catch (Exception e) { CLog.Warn(p.Id + "/" + rel + ": materials." + channel + ": " + e.Message); }
+                }
+            }
+
+            try { ProfileRegistry.Register(prof); }
+            catch (Exception e) { throw new InvalidOperationException("shader profile registration failed: " + e.Message); }
+        }
+
         private static void ParseMaterial(PackInfo p, string rel, Dictionary<string, object> o, HashSet<string> ids)
         {
             if (Str(o, "type") != "material") throw new InvalidOperationException("type must be 'material'");
@@ -435,6 +535,7 @@ namespace Crucible
             else throw new InvalidOperationException("kind must be metal, wood, leather, or canvas");
 
             d.HashOverride = OptInt(o, "hash", 1, Hashing.MaxNetwork);
+            d.SourceMaterialHashOverride = OptInt(o, "sourceMaterialHash", 1, Hashing.MaxNetwork);
             object props;
             if (o.TryGetValue("properties", out props) && props != null)
             {
@@ -455,6 +556,49 @@ namespace Crucible
                 var vo = Obj(visuals, "visuals"); object shader;
                 if (vo.TryGetValue("shader", out shader) && shader != null)
                     foreach (var kv in Obj(shader, "visuals.shader")) d.Shader.Add(ParseShader(kv.Key, kv.Value));
+
+                // profile reference
+                object prof;
+                if (vo.TryGetValue("profile", out prof) && prof != null)
+                {
+                    if (!(prof is string)) throw new InvalidOperationException("visuals.profile must be a string");
+                    d.ProfileId = (string)prof;
+                }
+
+                // legacy/global overrides (visuals.overrides)
+                object overrides;
+                if (vo.TryGetValue("overrides", out overrides) && overrides != null)
+                {
+                    var ov = Obj(overrides, "visuals.overrides");
+                    foreach (var kv in ov)
+                    {
+                        try { d.ProfileOverrides.Add(ParseShader(kv.Key, kv.Value)); }
+                        catch (Exception e) { CLog.Warn(d.Where + ": visuals.overrides." + kv.Key + ": " + e.Message); }
+                    }
+                }
+
+                // support per-material / per-channel shader overrides under visuals.materials
+                object mats;
+                if (vo.TryGetValue("materials", out mats) && mats != null)
+                {
+                    var mo = Obj(mats, "visuals.materials");
+                    foreach (var matKv in mo)
+                    {
+                        string channel = matKv.Key;
+                        try
+                        {
+                            var map = Obj(matKv.Value, "visuals.materials." + channel);
+                            foreach (var kv in map)
+                            {
+                                var so = ParseShader(kv.Key, kv.Value);
+                                List<ShaderOverride> list;
+                                if (!d.MaterialShaders.TryGetValue(channel, out list)) { list = new List<ShaderOverride>(); d.MaterialShaders[channel] = list; }
+                                list.Add(so);
+                            }
+                        }
+                        catch (Exception e) { CLog.Warn(d.Where + ": visuals.materials." + channel + ": " + e.Message); }
+                    }
+                }
             }
 
             object ingot;
@@ -608,13 +752,197 @@ namespace Crucible
         private static int? OptInt(Dictionary<string, object> o, string k, int min, int max) { object x; if (!o.TryGetValue(k, out x) || x == null) return null; return Int(x, k, min, max); }
         private static bool TryColor(string s, out Vector4 v) { v = default(Vector4); if (s == null || !s.StartsWith("#")) return false; string h = s.Substring(1); if (h.Length != 6 && h.Length != 8) return false; float[] c = { 0, 0, 0, 1 }; for (int i = 0; i < h.Length / 2; i++) { int n; if (!int.TryParse(h.Substring(i * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out n)) return false; c[i] = n / 255f; } v = new Vector4(c[0], c[1], c[2], c[3]); return true; }
         private static bool TryVec4(List<object> a, out Vector4 v) { v = default(Vector4); if (a.Count != 4 || a.Any(x => !(x is double))) return false; v = new Vector4((float)(double)a[0], (float)(double)a[1], (float)(double)a[2], (float)(double)a[3]); return true; }
+
+        // Attempt to set a shader override on a material, with a small set of common alias fallbacks for
+        // property names (helps with wood/cloth shaders that use different property names).
+        private static readonly Dictionary<string, string[]> ShaderPropertyAliases = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "_ColorA", new[] { "_BaseColor", "_MainColor", "_Color" } },
+            { "_ColorB", new[] { "_SecondaryColor", "_AtlasColor" } },
+            { "_EmissionColor", new[] { "_Emission", "_EmissiveColor" } },
+            { "_Glossiness", new[] { "_Smoothness", "_Shininess" } },
+            { "_Roughness", new[] { "_Smoothness" } },
+        };
+
+        private static bool TryApplyShaderOverride(Material m, ShaderOverride ov, string where)
+        {
+            if (m == null || ov == null) return false;
+            // Try exact name first
+            if (m.HasProperty(ov.Name))
+            {
+                if (ov.Vec.HasValue) m.SetVector(ov.Name, ov.Vec.Value); else m.SetFloat(ov.Name, ov.Num.Value);
+                return true;
+            }
+
+            // Try aliases
+            string[] aliases;
+            if (ShaderPropertyAliases.TryGetValue(ov.Name, out aliases))
+            {
+                foreach (var a in aliases)
+                {
+                    if (string.IsNullOrEmpty(a)) continue;
+                    if (m.HasProperty(a))
+                    {
+                        if (ov.Vec.HasValue) m.SetVector(a, ov.Vec.Value); else m.SetFloat(a, ov.Num.Value);
+                        return true;
+                    }
+                }
+            }
+
+            // Not applied
+            CLog.Warn(where + ": shader property '" + ov.Name + "' missing on " + m.name);
+            return false;
+        }
+    }
+
+    internal interface IMaterialVisualAdapter
+    {
+        Dictionary<string, Material> CreateMaterialSlots(LibMaterial lib);
+    }
+
+    internal static class VisualAdapterFactory
+    {
+        public static IMaterialVisualAdapter GetAdapter(LibMaterial.MaterialType kind)
+        {
+            switch (kind)
+            {
+                case LibMaterial.MaterialType.metal: return new MetalVisualAdapter();
+                case LibMaterial.MaterialType.wood: return new WoodVisualAdapter();
+                case LibMaterial.MaterialType.leather: return new LeatherVisualAdapter();
+                case LibMaterial.MaterialType.canvas: return new CanvasVisualAdapter();
+                default: return new DefaultVisualAdapter();
+            }
+        }
+    }
+
+    internal class MetalVisualAdapter : IMaterialVisualAdapter
+    {
+        // MetalVisualAdapter maps the LibMaterial channel spots typically used by
+        // metal visuals to friendly slot names. A -> main material, B -> atlas/non-forging.
+        public Dictionary<string, Material> CreateMaterialSlots(LibMaterial lib)
+        {
+            var dict = new Dictionary<string, Material>(StringComparer.OrdinalIgnoreCase);
+            try { dict["A"] = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, 1)); } catch { }
+            try { dict["B"] = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, 2)); } catch { }
+            return dict;
+        }
+    }
+
+    internal class CanvasVisualAdapter : IMaterialVisualAdapter
+    {
+        // CanvasVisualAdapter exposes two slots: worn and cutout, mapping to channel 0 spots.
+        public Dictionary<string, Material> CreateMaterialSlots(LibMaterial lib)
+        {
+            var dict = new Dictionary<string, Material>(StringComparer.OrdinalIgnoreCase);
+            try { dict["worn"] = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, 1)); } catch { }
+            try { dict["cutout"] = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, 2)); } catch { }
+            return dict;
+        }
+    }
+
+    internal class WoodVisualAdapter : IMaterialVisualAdapter
+    {
+        // WoodVisualAdapter attempts to provide the common wood-related slots used by MateriaLib:
+        // A/B for main/atlas and charred/burnt/ashen on a second channel. If a source material
+        // lacks these spots the calls are wrapped in try/catch and missing slots are omitted.
+        public Dictionary<string, Material> CreateMaterialSlots(LibMaterial lib)
+        {
+            var dict = new Dictionary<string, Material>(StringComparer.OrdinalIgnoreCase);
+            try { dict["A"] = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, 1)); } catch { }
+            try { dict["B"] = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, 2)); } catch { }
+            try { dict["charred"] = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(1, 1)); } catch { }
+            try { dict["burnt"] = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(1, 2)); } catch { }
+            try { dict["ashen"] = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(1, 3)); } catch { }
+            return dict;
+        }
+    }
+
+    internal class LeatherVisualAdapter : IMaterialVisualAdapter
+    {
+        // Leather typically exposes a single main material slot A.
+        public Dictionary<string, Material> CreateMaterialSlots(LibMaterial lib)
+        {
+            var dict = new Dictionary<string, Material>(StringComparer.OrdinalIgnoreCase);
+            try { dict["A"] = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, 1)); } catch { }
+            return dict;
+        }
+    }
+
+    internal class DefaultVisualAdapter : IMaterialVisualAdapter
+    {
+        // DefaultVisualAdapter provides a single A slot as a conservative fallback.
+        public Dictionary<string, Material> CreateMaterialSlots(LibMaterial lib)
+        {
+            var dict = new Dictionary<string, Material>(StringComparer.OrdinalIgnoreCase);
+            try { dict["A"] = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, 1)); } catch { }
+            return dict;
+        }
     }
 
     internal static class MaterialBuilder
     {
+        // MaterialBuilder is responsible for constructing a LibMaterial instance from a MaterialDef,
+        // applying MaterialConfig, cloning source PhysicalMaterials when requested, applying shader
+        // profiles and per-slot overrides, and finally invoking MateriaLib's ReplaceAllMaterials API
+        // to apply the generated Unity Materials into the LibMaterial.
+        // Local copy of shader alias lookup for material building context
+        private static readonly Dictionary<string, string[]> ShaderPropertyAliases = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "_ColorA", new[] { "_BaseColor", "_MainColor", "_Color" } },
+            { "_ColorB", new[] { "_SecondaryColor", "_AtlasColor" } },
+            { "_EmissionColor", new[] { "_Emission", "_EmissiveColor" } },
+            { "_Glossiness", new[] { "_Smoothness", "_Shininess" } },
+            { "_Roughness", new[] { "_Smoothness" } },
+        };
+
+        private static bool TryApplyShaderOverride(Material m, ShaderOverride ov, string where)
+        {
+            if (m == null || ov == null) return false;
+            if (m.HasProperty(ov.Name))
+            {
+                if (ov.Vec.HasValue) m.SetVector(ov.Name, ov.Vec.Value); else m.SetFloat(ov.Name, ov.Num.Value);
+                return true;
+            }
+            string[] aliases;
+            if (ShaderPropertyAliases.TryGetValue(ov.Name, out aliases))
+            {
+                foreach (var a in aliases)
+                {
+                    if (string.IsNullOrEmpty(a)) continue;
+                    if (m.HasProperty(a))
+                    {
+                        if (ov.Vec.HasValue) m.SetVector(a, ov.Vec.Value); else m.SetFloat(a, ov.Num.Value);
+                        return true;
+                    }
+                }
+            }
+            CLog.Warn(where + ": shader property '" + ov.Name + "' missing on " + m.name);
+            return false;
+        }
         public static void Build(MaterialDef d)
         {
-            var lib = new LibMaterial(d.DisplayName, d.Hash, d.Kind);
+            LibMaterial lib;
+            // If the material requested an existing PhysicalMaterial as source, try to clone that
+            if (d.SourceMaterialHashOverride.HasValue)
+            {
+                uint want = (uint)d.SourceMaterialHashOverride.Value;
+                PhysicalMaterial src = null;
+                try { src = PhysicalMaterial.All.FirstOrDefault(x => x != null && ((x.Hash & 0xFFFF) == want)); } catch { }
+                if (src != null)
+                {
+                    var cloned = UnityEngine.Object.Instantiate(src);
+                    lib = new LibMaterial(d.DisplayName, d.Hash, cloned);
+                }
+                else
+                {
+                    CLog.Warn(d.Where + ": requested source material hash " + want + " not found, falling back to default template");
+                    lib = new LibMaterial(d.DisplayName, d.Hash, d.Kind);
+                }
+            }
+            else
+            {
+                lib = new LibMaterial(d.DisplayName, d.Hash, d.Kind);
+            }
             var cfg = new MaterialConfig();
             foreach (var kv in d.Props)
             {
@@ -630,17 +958,159 @@ namespace Crucible
                 else CLog.Warn(d.Where + ": durabilityMultiplier needs MateriaLib 1.3.0 or newer, the game itself never reads it");
             }
 
-            if (d.Kind == LibMaterial.MaterialType.metal && d.Shader.Count > 0)
+            // Apply shader profile (if any) then material-level overrides. Preserve legacy behavior.
+            if (d.ProfileId != null || d.Shader.Count > 0 || d.MaterialShaders.Count > 0)
             {
-                Material main = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, 1));
-                Material atlas = UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, 2));
-                main.name = d.DisplayName; atlas.name = d.DisplayName + " NonForging";
-                foreach (ShaderOverride ov in d.Shader) foreach (Material m in new[] { main, atlas })
+                ShaderProfile prof = null;
+                if (d.ProfileId != null)
                 {
-                    if (!m.HasProperty(ov.Name)) { CLog.Warn(d.Where + ": shader property '" + ov.Name + "' missing on " + m.name); continue; }
-                    if (ov.Vec.HasValue) m.SetVector(ov.Name, ov.Vec.Value); else m.SetFloat(ov.Name, ov.Num.Value);
+                    if (!ProfileRegistry.TryGet(d.ProfileId, out prof)) throw new InvalidOperationException(d.Where + ": shader profile '" + d.ProfileId + "' could not be resolved");
+                    // kind compatibility check
+                    if (!string.IsNullOrEmpty(prof.Kind))
+                    {
+                        string k = d.Kind == LibMaterial.MaterialType.metal ? "metal" : d.Kind == LibMaterial.MaterialType.canvas ? "canvas" : d.Kind == LibMaterial.MaterialType.leather ? "leather" : d.Kind == LibMaterial.MaterialType.wood ? "wood" : null;
+                        if (k == null || !string.Equals(k, prof.Kind, StringComparison.OrdinalIgnoreCase))
+                            throw new InvalidOperationException(d.Where + ": shader profile '" + d.ProfileId + "' supports kind '" + prof.Kind + "' but material is '" + k + "'");
+                    }
                 }
-                lib.ReplaceAllMaterials(new[] { main, atlas }, atlas);
+
+                Func<string, Material> resolve = channel =>
+                {
+                    try
+                    {
+                        if (string.Equals(channel, "A", StringComparison.OrdinalIgnoreCase) || string.Equals(channel, "main", StringComparison.OrdinalIgnoreCase) || channel == "1")
+                            return UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, 1));
+                        if (string.Equals(channel, "B", StringComparison.OrdinalIgnoreCase) || string.Equals(channel, "atlas", StringComparison.OrdinalIgnoreCase) || string.Equals(channel, "nonforging", StringComparison.OrdinalIgnoreCase) || channel == "2")
+                            return UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, 2));
+
+                        int idx;
+                        if (int.TryParse(channel, out idx)) return UnityEngine.Object.Instantiate(lib.GetMaterialFromChannelSpot(0, idx));
+                    }
+                    catch (Exception) { }
+                    return null;
+                };
+
+                // use a visual adapter to create primary material slots
+                IMaterialVisualAdapter adapter = VisualAdapterFactory.GetAdapter(d.Kind);
+                var materials = adapter.CreateMaterialSlots(lib) ?? new Dictionary<string, Material>(StringComparer.OrdinalIgnoreCase);
+
+                // ensure any explicitly requested channels exist
+                foreach (var ch in d.MaterialShaders.Keys) if (!materials.ContainsKey(ch)) { var m = resolve(ch); if (m != null) materials[ch] = m; else CLog.Warn(d.Where + ": unknown material channel '" + ch + "' requested"); }
+                if (prof != null)
+                {
+                    foreach (var ch in prof.MaterialProperties.Keys) if (!materials.ContainsKey(ch)) { var m = resolve(ch); if (m != null) materials[ch] = m; }
+                }
+
+                // apply profile global properties
+                if (prof != null)
+                {
+                    foreach (var ov in prof.Properties)
+                    {
+                        foreach (var kv in materials)
+                        {
+                            Material m = kv.Value;
+                            TryApplyShaderOverride(m, ov, d.Where);
+                        }
+                    }
+
+                    // apply profile per-slot
+                    foreach (var kv in prof.MaterialProperties)
+                    {
+                        string ch = kv.Key; List<ShaderOverride> list = kv.Value; Material m; if (!materials.TryGetValue(ch, out m)) { CLog.Warn(d.Where + ": profile material channel '" + ch + "' not available"); continue; }
+                        foreach (var ov in list) { TryApplyShaderOverride(m, ov, d.Where); }
+                    }
+                }
+
+                // apply material-level global overrides (legacy visuals.shader + visuals.overrides)
+                foreach (var ov in d.Shader.Concat(d.ProfileOverrides))
+                {
+                    foreach (var kv in materials)
+                    {
+                        Material m = kv.Value;
+                        TryApplyShaderOverride(m, ov, d.Where);
+                    }
+                }
+
+                // apply material-level per-slot overrides
+                foreach (var kv in d.MaterialShaders)
+                {
+                    string ch = kv.Key; List<ShaderOverride> list = kv.Value; Material m; if (!materials.TryGetValue(ch, out m)) { CLog.Warn(d.Where + ": material channel '" + ch + "' not available"); continue; }
+                    foreach (var ov in list) { if (!m.HasProperty(ov.Name)) { CLog.Warn(d.Where + ": shader property '" + ov.Name + "' missing on " + m.name); continue; } if (ov.Vec.HasValue) m.SetVector(ov.Name, ov.Vec.Value); else m.SetFloat(ov.Name, ov.Num.Value); }
+                }
+
+                // replace materials using kind-aware patterns
+                try
+                {
+                    if (d.Kind == LibMaterial.MaterialType.metal)
+                    {
+                        if (materials.ContainsKey("A") && materials.ContainsKey("B"))
+                        {
+                            var main = materials["A"]; var atlas = materials["B"];
+                            main.name = d.DisplayName; atlas.name = d.DisplayName + " NonForging";
+                            lib.ReplaceAllMaterials(new[] { main, atlas }, atlas);
+                        }
+                        else
+                        {
+                            var first = materials.FirstOrDefault().Value; if (first != null) lib.ReplaceAllMaterials(new[] { first, first }, first);
+                        }
+                    }
+                    else if (d.Kind == LibMaterial.MaterialType.canvas)
+                    {
+                        Material worn = null, cutout = null;
+                        materials.TryGetValue("worn", out worn);
+                        materials.TryGetValue("cutout", out cutout);
+                        if (worn == null && materials.ContainsKey("A")) worn = materials["A"];
+                        if (cutout == null && materials.ContainsKey("B")) cutout = materials["B"];
+                        if (worn != null)
+                        {
+                            if (cutout == null) cutout = worn;
+                            worn.name = d.DisplayName; cutout.name = d.DisplayName + " Cutout";
+                            lib.ReplaceAllMaterials(worn, cutout);
+                        }
+                        else
+                        {
+                            var first = materials.FirstOrDefault().Value; if (first != null) lib.ReplaceAllMaterials(first, first);
+                        }
+                    }
+                    else if (d.Kind == LibMaterial.MaterialType.leather)
+                    {
+                        Material leatherMat = null;
+                        if (!materials.TryGetValue("A", out leatherMat)) leatherMat = materials.FirstOrDefault().Value;
+                        if (leatherMat != null)
+                        {
+                            leatherMat.name = d.DisplayName;
+                            lib.ReplaceAllMaterials(leatherMat);
+                        }
+                    }
+                    else if (d.Kind == LibMaterial.MaterialType.wood)
+                    {
+                        Material a = null, b = null, charred = null, burnt = null, ashen = null;
+                        materials.TryGetValue("A", out a);
+                        materials.TryGetValue("B", out b);
+                        materials.TryGetValue("charred", out charred);
+                        materials.TryGetValue("burnt", out burnt);
+                        materials.TryGetValue("ashen", out ashen);
+                        if (a == null) a = materials.FirstOrDefault().Value;
+                        if (b == null) b = a;
+                        if (charred == null) charred = b;
+                        if (burnt == null) burnt = b;
+                        if (ashen == null) ashen = b;
+                        if (a != null)
+                        {
+                            a.name = d.DisplayName; b.name = d.DisplayName + " NonForging";
+                            lib.ReplaceAllMaterials(new[] { a, b }, charred, burnt, ashen);
+                        }
+                    }
+                    else
+                    {
+                        var first = materials.FirstOrDefault().Value; if (first != null) lib.ReplaceAllMaterials(new[] { first, first }, first);
+                    }
+                }
+                catch (Exception e)
+                {
+                    CLog.Error(d.Where + ": material replacement failed: " + e);
+                    throw;
+                }
             }
 
             lib.addToList = d.Listed;

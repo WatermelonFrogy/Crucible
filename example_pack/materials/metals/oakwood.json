@@ -1,0 +1,18 @@
+{
+  "type": "material",
+  "id": "example:oakwood",
+  "displayName": "Oak Wood",
+  "kind": "wood",
+  "properties": {
+    "damageMultiplier": 1.0,
+    "durabilityMultiplier": 1.0
+  },
+  "visuals": {
+    "shader": {
+      "_ColorA": "#8B5A2B",
+      "_ColorB": "#5C3A20"
+    }
+  },
+  "listed": true,
+  "unlockAt": 0
+}

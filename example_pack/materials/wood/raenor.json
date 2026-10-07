@@ -1,0 +1,19 @@
+{
+  "type": "material",
+  "id": "example:raenor",
+  "displayName": "Raenor",
+  "kind": "wood",
+  "properties": {
+    "damageMultiplier": 1.05,
+    "durabilityMultiplier": 1.15
+  },
+  "visuals": {
+    "profile": "example:wood_basic",
+    "shader": {
+      "_ColorA": "#5A2A21",
+      "_ColorB": "#3E1F18"
+    }
+  },
+  "listed": true,
+  "unlockAt": 1
+}
